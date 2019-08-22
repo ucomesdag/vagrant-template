@@ -1,0 +1,49 @@
+- name: server1
+  hostname: server1.example.com
+  box: centos/7
+  cpu: 1
+  ram: 1024
+  ip: 172.25.0.101
+  ssh_host_port: 2201
+  provider: virtualbox
+  protected: false
+  ansible_provision: true
+  playbook: playbook.yml 
+
+- name: server2
+  hostname: server2.example.com
+  box: centos/7
+  cpu: 1
+  ram: 1024
+  ip: 172.25.0.102
+  ssh_host_port: 2303
+  provider: virtualbox
+  protected: false
+  ansible_provision: true
+  playbook: playbook.yml 
+
+# - name: My VM
+#   hostname: my-vm.example.com             # optional
+#   box: centos/7                           # required
+#   box_url: file://virtualbox.box          # optional
+#   box_version: 1708.01                    # optional
+#   cpu: 2                                  # optional
+#   ram: 2048                               # optional
+#   disk: '50GB'                            # optional (raw number (in bytes) or using KB, MB, GB or TB)
+#   ip: 172.25.0.2                          # optional
+#   ssh_host_port: 2100                     # optional
+#   rdp_host_port: 33891                    # optional
+#   winrm_host_port: 59851                  # optional
+#   provider: virtualbox                    # required when setting name, cpu or ram
+#   guest_additions: true                   # optional
+#   gui: true                               # optional
+#   protected: false                        # optional
+#   playbook: playbook.yml                  # optional
+#   inventory: inventory                    # optional
+#   ansible_provision: true                 # optional
+#   ansible_roles_path: ./roles/            # optional
+#   ansible_requirements: requirements.yml  # optional
+#   ansible_extra_vars: { key: val }        # optional
+#   ansible_verbose: true                   # optional (true or verbosity level 1-4)
+#   ask_vault_pass: true                    # optional
+#   vault_password_file: password.txt       # optional
