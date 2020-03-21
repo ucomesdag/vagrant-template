@@ -1,5 +1,6 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
+# version 0.1
 
 # Temporary fix for: https://github.com/projectatomic/adb-vagrant-registration/issues/126
 # Registration is skiped on rhel7.5 because subscription_manager_registered cap no longer works
@@ -19,7 +20,7 @@ end
 
 # Install plugins
 need_restart = false
-required_plugins = %w(vagrant-registration vagrant-hostmanager vagrant-protect vagrant-cachier vagrant-vbguest vagrant-disksize) # nugrant vagrant-bindfs vagrant-proxyconf
+required_plugins = %w(vagrant-registration vagrant-hostmanager vagrant-protect vagrant-cachier vagrant-vbguest vagrant-disksize vagrant-scp) # nugrant vagrant-bindfs vagrant-proxyconf
 required_plugins.each do |plugin|
   unless Vagrant.has_plugin? plugin
     system "vagrant plugin install #{plugin}"
@@ -165,6 +166,9 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
             end
             if servers["disk"] != nil && Vagrant.has_plugin?("vagrant-disksize")
               srv.disksize.size = servers["disk"]
+            end
+            if servers["cap"] != nil
+              vb.customize ["modifyvm", :id, "--cpuexecutioncap", "#{servers["cap"]}"]
             end
             vb.gui = servers["gui"]
             vb.customize ["setextradata", "global", "GUI/SuppressMessages", "all"]

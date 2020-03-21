@@ -1,3 +1,5 @@
+---
+# version 0.1
 - name: server1
   hostname: server1.example.com
   box: centos/7
@@ -28,6 +30,7 @@
 #   box_url: file://virtualbox.box          # optional
 #   box_version: 1708.01                    # optional
 #   cpu: 2                                  # optional
+#   cap: 40                                 # optional (cpu execution cap 0-100)
 #   ram: 2048                               # optional
 #   disk: '50GB'                            # optional (raw number (in bytes) or using KB, MB, GB or TB)
 #   ip: 172.25.0.2                          # optional
