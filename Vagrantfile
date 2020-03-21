@@ -57,69 +57,69 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   end
 
   # Iterate through entries in YAML file
-  servers.each do |servers|
+  servers.each do |server|
 
-    if servers["username"]
-      config.ssh.username = servers["username"]
+    if server["username"]
+      config.ssh.username = server["username"]
     end
 
-    if servers["password"]
-      config.ssh.password = servers["password"]
+    if server["password"]
+      config.ssh.password = server["password"]
       config.ssh.insert_key = false
     end
 
-    config.vm.define servers["name"] do |srv|
+    config.vm.define server["name"] do |srv|
 
       # vagrant box
-      if servers["box_url"] != nil
-        srv.vm.box_url = servers["box_url"]
+      if server["box_url"] != nil
+        srv.vm.box_url = server["box_url"]
       else
-        if servers["box_version"] and
-            srv.vm.box_version = servers["box_version"].to_s
+        if server["box_version"] and
+            srv.vm.box_version = server["box_version"].to_s
             srv.vm.box_check_update = false
           end
       end
-      srv.vm.box = servers["box"]
+      srv.vm.box = server["box"]
 
       # ip
-      if servers["ip"]
-        srv.vm.network "private_network", ip: servers["ip"]
+      if server["ip"]
+        srv.vm.network "private_network", ip: server["ip"]
       end
 
       # ssh
-      if servers["ssh_host_port"]
+      if server["ssh_host_port"]
         # https://realguess.net/2015/10/06/overriding-the-default-forwarded-ssh-port-in-vagrant/
-        srv.vm.network :forwarded_port, guest: 22, host: servers['ssh_host_port'], id: "ssh"
+        srv.vm.network :forwarded_port, guest: 22, host: server['ssh_host_port'], id: "ssh"
       end
 
       # rdp
-      if servers["rdp_host_port"]
-        srv.vm.network :forwarded_port, guest: 3389, host: servers['rdp_host_port'], id: "rdp"
+      if server["rdp_host_port"]
+        srv.vm.network :forwarded_port, guest: 3389, host: server['rdp_host_port'], id: "rdp"
       end
 
       # winrm
-      if servers["winrm_host_port"]
-        srv.vm.network :forwarded_port, guest: 5985, host: servers['winrm_host_port'], id: "winrm", auto_correct: true
+      if server["winrm_host_port"]
+        srv.vm.network :forwarded_port, guest: 5985, host: server['winrm_host_port'], id: "winrm", auto_correct: true
       end
 
       # hostname
-      if servers["hostname"] != nil
-        srv.vm.hostname = servers["hostname"]
+      if server["hostname"] != nil
+        srv.vm.hostname = server["hostname"]
       end
 
       # vagrant-protect plugin
       if Vagrant.has_plugin?("vagrant-protect")
-        srv.protect.enabled = servers["protected"]
+        srv.protect.enabled = server["protected"]
       end
 
       # vagrant-registration plugin
       if Vagrant.has_plugin?('vagrant-registration')
         if ENV['RHSM_USERNAME'] && ENV['RHSM_PASSWORD']
           now = Time.new
-          if servers["hostname"] != nil
-            registration_name = servers["hostname"]
+          if server["hostname"] != nil
+            registration_name = server["hostname"]
           else
-            registration_name = servers["name"].gsub(/\s+/, '_').gsub!(/[^0-9A-Za-z\.-_]/, '')
+            registration_name = server["name"].gsub(/\s+/, '_').gsub!(/[^0-9A-Za-z\.-_]/, '')
           end
           srv.registration.name = registration_name + "-" + now.strftime("%Y%m%d%H%M")
           srv.registration.username = ENV['RHSM_USERNAME']
@@ -134,43 +134,43 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
         srv.hostmanager.manage_guest = true
         srv.hostmanager.ignore_private_ip = false
         srv.hostmanager.include_offline = true
-        if servers["hostname"] != nil
-          hostname = servers["hostname"].gsub(/^(\w+)\..*$/, '\1')
+        if server["hostname"] != nil
+          hostname = server["hostname"].gsub(/^(\w+)\..*$/, '\1')
           srv.hostmanager.aliases = %w("#{hostname}.localdomain" "#{hostname}")
         end
       end
 
       # vagrant-vbguest plugin
       if Vagrant.has_plugin?("vagrant-vbguest")
-        if servers["guest_additions"] == nil || !servers["guest_additions"]
+        if server["guest_additions"] == nil || !server["guest_additions"]
           srv.vbguest.auto_update = false
         end
       end
 
       # sync folder
-      if File.exist?(".vagrant/machines/#{servers["name"]}/virtualbox/action_provision")
+      if File.exist?(".vagrant/machines/#{server["name"]}/virtualbox/action_provision")
         srv.vm.synced_folder ".", "/vagrant"
       end
 
       # configure provider
-      if servers["provider"] != nil
-        case servers["provider"]
+      if server["provider"] != nil
+        case server["provider"]
         when "virtualbox"
           srv.vm.provider :virtualbox do |vb|
-            vb.name = "#{servers["name"]}"
-            if servers["cpu"] != nil
-              vb.cpus = servers["cpu"]
+            vb.name = "#{server["name"]}"
+            if server["cpu"] != nil
+              vb.cpus = server["cpu"]
             end
-            if servers["ram"] != nil
-              vb.memory = servers["ram"]
+            if server["ram"] != nil
+              vb.memory = server["ram"]
             end
-            if servers["disk"] != nil && Vagrant.has_plugin?("vagrant-disksize")
-              srv.disksize.size = servers["disk"]
+            if server["disk"] != nil && Vagrant.has_plugin?("vagrant-disksize")
+              srv.disksize.size = server["disk"]
             end
-            if servers["cap"] != nil
-              vb.customize ["modifyvm", :id, "--cpuexecutioncap", "#{servers["cap"]}"]
+            if server["cap"] != nil
+              vb.customize ["modifyvm", :id, "--cpuexecutioncap", "#{server["cap"]}"]
             end
-            vb.gui = servers["gui"]
+            vb.gui = server["gui"]
             vb.customize ["setextradata", "global", "GUI/SuppressMessages", "all"]
           end
         else
@@ -179,18 +179,18 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
       end
 
       # ansible provisioning
-      if servers["ansible_provision"] != nil && servers["ansible_provision"]
+      if server["ansible_provision"] != nil && server["ansible_provision"]
         srv.vm.provision :ansible do |ansible|
-          ansible.limit = servers[:name]
-          # Use playbook name from servers.yml
-          if servers["playbook"] == nil
+          ansible.limit = server[:name]
+          # Use playbook name from server.yml
+          if server["playbook"] == nil
              ansible.playbook = "./playbooks/default.yml"
           else
-             ansible.playbook = "#{servers["playbook"]}"
+             ansible.playbook = "#{server["playbook"]}"
           end
           # Pass a custom inventory file
-          if servers["inventory"] != nil
-             ansible.inventory_path = "#{servers["inventory"]}"
+          if server["inventory"] != nil
+             ansible.inventory_path = "#{server["inventory"]}"
           end
 
           ansible.become = "true"
@@ -199,11 +199,11 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
           ansible.host_key_checking = "false"
 
           # Run in verbose mode
-          if servers["ansible_verbose"] != nil && servers["ansible_verbose"]
-            if servers["ansible_verbose"].is_a? Numeric
-              if servers["ansible_verbose"] > 0
+          if server["ansible_verbose"] != nil && server["ansible_verbose"]
+            if server["ansible_verbose"].is_a? Numeric
+              if server["ansible_verbose"] > 0
                 ansible.verbose = "-"
-                for i in 1..servers["ansible_verbose"]
+                for i in 1..server["ansible_verbose"]
                   ansible.verbose << "v" 
                 end
               end
@@ -213,25 +213,25 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
           end
 
           # Set the password for the vault
-          if servers["ask_vault_pass"]
+          if server["ask_vault_pass"]
             ansible.ask_vault_pass = true
-          elsif servers["vault_password_file"] != nil
-            ansible.vault_password_file = "#{servers["vault_password_file"]}"
+          elsif server["vault_password_file"] != nil
+            ansible.vault_password_file = "#{server["vault_password_file"]}"
           end
 
           # Set roles path
-          if servers["ansible_roles_path"] == nil 
-            ansible.galaxy_roles_path = "#{servers["ansible_roles_path"]}"
+          if server["ansible_roles_path"] == nil 
+            ansible.galaxy_roles_path = "#{server["ansible_roles_path"]}"
           end
           
           # requirements file
-          if servers["ansible_requirements"] != nil
-             ansible.galaxy_role_file  = "#{servers["ansible_requirements"]}"
+          if server["ansible_requirements"] != nil
+             ansible.galaxy_role_file  = "#{server["ansible_requirements"]}"
           end
 
           # extra_vars
-          if servers["ansible_extra_vars"] != nil
-            ansible.extra_vars = servers["ansible_extra_vars"]
+          if server["ansible_extra_vars"] != nil
+            ansible.extra_vars = server["ansible_extra_vars"]
           end
 
         end
