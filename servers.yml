@@ -7,10 +7,9 @@
   ram: 1024
   ip: 172.25.0.101
   ssh_host_port: 2201
-  provider: virtualbox
   protected: false
   ansible_provision: true
-  playbook: playbook.yml 
+  playbook: playbook.yml
 
 - name: server2
   hostname: server2.example.com
@@ -19,10 +18,9 @@
   ram: 1024
   ip: 172.25.0.102
   ssh_host_port: 2303
-  provider: virtualbox
   protected: false
   ansible_provision: true
-  playbook: playbook.yml 
+  playbook: playbook.yml
 
 # - name: My VM
 #   hostname: my-vm.example.com             # optional
@@ -37,7 +35,6 @@
 #   ssh_host_port: 2100                     # optional
 #   rdp_host_port: 33891                    # optional
 #   winrm_host_port: 59851                  # optional
-#   provider: virtualbox                    # required when setting name, cpu or ram
 #   guest_additions: true                   # optional
 #   gui: true                               # optional
 #   protected: false                        # optional

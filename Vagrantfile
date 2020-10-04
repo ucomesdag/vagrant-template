@@ -20,7 +20,7 @@ end
 
 # Install plugins
 need_restart = false
-required_plugins = %w(vagrant-registration vagrant-hostmanager vagrant-protect vagrant-cachier vagrant-vbguest vagrant-disksize vagrant-scp) # nugrant vagrant-bindfs vagrant-proxyconf
+required_plugins = %w(vagrant-registration vagrant-hostmanager vagrant-protect vagrant-cachier vagrant-disksize vagrant-scp) # nugrant vagrant-bindfs vagrant-proxyconf
 required_plugins.each do |plugin|
   unless Vagrant.has_plugin? plugin
     system "vagrant plugin install #{plugin}"
@@ -140,41 +140,91 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
         end
       end
 
-      # vagrant-vbguest plugin
-      if Vagrant.has_plugin?("vagrant-vbguest")
-        if server["guest_additions"] == nil || !server["guest_additions"]
-          srv.vbguest.auto_update = false
-        end
-      end
-
       # sync folder
       if File.exist?(".vagrant/machines/#{server["name"]}/virtualbox/action_provision")
         srv.vm.synced_folder ".", "/vagrant"
       end
 
-      # configure provider
-      if server["provider"] != nil
-        case server["provider"]
-        when "virtualbox"
-          srv.vm.provider :virtualbox do |vb|
-            vb.name = "#{server["name"]}"
-            if server["cpu"] != nil
-              vb.cpus = server["cpu"]
-            end
-            if server["ram"] != nil
-              vb.memory = server["ram"]
-            end
-            if server["disk"] != nil && Vagrant.has_plugin?("vagrant-disksize")
-              srv.disksize.size = server["disk"]
-            end
-            if server["cap"] != nil
-              vb.customize ["modifyvm", :id, "--cpuexecutioncap", "#{server["cap"]}"]
-            end
-            vb.gui = server["gui"]
-            vb.customize ["setextradata", "global", "GUI/SuppressMessages", "all"]
+      # providers
+      vb_ignore = false # needed, else virtualbox configuration will always be triggered by default
+      srv.vm.provider :parallels do |prl|
+        prl.name = "#{server["name"]}"
+        if server["cpu"] != nil
+          prl.cpus = server["cpu"]
+        end
+        if server["ram"] != nil
+          prl.memory = server["ram"]
+        end
+        if server["disk"] != nil && Vagrant.has_plugin?("vagrant-disksize")
+          srv.disksize.size = server["disk"]
+        end
+        if server["cap"] != nil
+          (server["cap"] < 40) ? quota = "low" : (server["cap"] < 80) ? quota = "medium" : quota = "unlimited"
+          prl.customize ["set", :id, "--resource-quota", "#{quota}"]
+        end
+        if server["guest_tools"] == nil || !server["guest_tools"]
+          prl.update_guest_tools = false
+        end
+        vb_ignore = true
+      end
+
+      srv.vm.provider :vmware_desktop do |v|
+        v.vmx["displayName"] = "#{server["name"]}"
+        if server["cpu"] != nil
+          v.vmx["numvcpu"] = server["cpu"]
+        end
+        if server["ram"] != nil
+          v.vmx["memsize"] = server["ram"]
+        end
+        if server["disk"] != nil && Vagrant.has_plugin?("vagrant-disksize")
+          srv.disksize.size = server["disk"]
+        end
+        if server["cap"] != nil
+          # not implemented in vmware
+          # v.vmxset""] = server["cap"]
+        end
+        v.gui = server["gui"]
+        if server["guest_tools"] == nil || !server["guest_tools"]
+          # v.vmxset""] = false
+        end
+        vb_ignore = true
+      end
+
+      srv.vm.provider :hyperv do |h|
+        vb_ignore = true
+      end
+
+      srv.vm.provider :docker do |d|
+        vb_ignore = true
+      end
+
+      if vb_ignore == false
+        srv.vm.provider :virtualbox do |vb|
+          vb.name = "#{server["name"]}"
+          if server["cpu"] != nil
+            vb.cpus = server["cpu"]
           end
-        else
-          puts "Supported provider ATM is Virtualbox ... exiting"
+          if server["ram"] != nil
+            vb.memory = server["ram"]
+          end
+          if server["disk"] != nil && Vagrant.has_plugin?("vagrant-disksize")
+            srv.disksize.size = server["disk"]
+          end
+          if server["cap"] != nil
+            vb.customize ["modifyvm", :id, "--cpuexecutioncap", "#{server["cap"]}"]
+          end
+          vb.gui = server["gui"]
+          vb.customize ["setextradata", "global", "GUI/SuppressMessages", "all"]
+          # vagrant-vbguest plugin
+          if server["guest_tools"] == nil || !server["guest_tools"]
+            if Vagrant.has_plugin?("vagrant-vbguest")
+              srv.vbguest.auto_update = false
+            end
+          else
+            unless Vagrant.has_plugin?("vagrant-vbguest")
+              system "vagrant plugin install vagrant-vbguest"
+            end
+          end
         end
       end
 
@@ -204,7 +254,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
               if server["ansible_verbose"] > 0
                 ansible.verbose = "-"
                 for i in 1..server["ansible_verbose"]
-                  ansible.verbose << "v" 
+                  ansible.verbose << "v"
                 end
               end
             else
@@ -220,10 +270,10 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
           end
 
           # Set roles path
-          if server["ansible_roles_path"] == nil 
+          if server["ansible_roles_path"] == nil
             ansible.galaxy_roles_path = "#{server["ansible_roles_path"]}"
           end
-          
+
           # requirements file
           if server["ansible_requirements"] != nil
              ansible.galaxy_role_file  = "#{server["ansible_requirements"]}"
