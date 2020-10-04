@@ -227,6 +227,16 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
           end
         end
       end
+      
+      # add your public key
+      config.vm.provision "shell" do |s|
+        ssh_pub_key = File.readlines("#{Dir.home}/.ssh/id_rsa.pub").first.strip
+        s.inline = <<-SHELL
+          mkdir -p /root/.ssh/
+          echo #{ssh_pub_key} >> /home/vagrant/.ssh/authorized_keys
+          echo #{ssh_pub_key} >> /root/.ssh/authorized_keys
+        SHELL
+      end
 
       # ansible provisioning
       if server["ansible_provision"] != nil && server["ansible_provision"]
