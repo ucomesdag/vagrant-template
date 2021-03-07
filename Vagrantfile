@@ -39,7 +39,7 @@ VAGRANTFILE_API_VERSION ||= "2"
 Vagrant.require_version ">=1.8.4"
 
 # Read YAML file with box details
-servers = YAML.load_file('servers.yml')
+servers = YAML.load_file(VAGRANT_DIR + '/servers.yml')
 
 # Create boxes
 Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
@@ -227,7 +227,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
           end
         end
       end
-      
+
       # add your public key
       config.vm.provision "shell" do |s|
         ssh_pub_key = File.readlines("#{Dir.home}/.ssh/id_rsa.pub").first.strip
