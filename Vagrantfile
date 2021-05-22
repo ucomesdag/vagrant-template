@@ -21,6 +21,7 @@ end
 # Install plugins
 need_restart = false
 required_plugins = %w(vagrant-registration vagrant-hostmanager vagrant-protect vagrant-cachier vagrant-disksize vagrant-scp) # nugrant vagrant-bindfs vagrant-proxyconf
+required_plugins = %w(vagrant-registration vagrant-hostmanager vagrant-protect vagrant-cachier vagrant-scp) # nugrant vagrant-bindfs vagrant-proxyconf
 required_plugins.each do |plugin|
   unless Vagrant.has_plugin? plugin
     system "vagrant plugin install #{plugin}"
@@ -146,7 +147,6 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
       end
 
       # providers
-      vb_ignore = false # needed, else virtualbox configuration will always be triggered by default
       srv.vm.provider :parallels do |prl|
         prl.name = "#{server["name"]}"
         if server["cpu"] != nil
@@ -155,9 +155,6 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
         if server["ram"] != nil
           prl.memory = server["ram"]
         end
-        if server["disk"] != nil && Vagrant.has_plugin?("vagrant-disksize")
-          srv.disksize.size = server["disk"]
-        end
         if server["cap"] != nil
           (server["cap"] < 40) ? quota = "low" : (server["cap"] < 80) ? quota = "medium" : quota = "unlimited"
           prl.customize ["set", :id, "--resource-quota", "#{quota}"]
@@ -165,7 +162,6 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
         if server["guest_tools"] == nil || !server["guest_tools"]
           prl.update_guest_tools = false
         end
-        vb_ignore = true
       end
 
       srv.vm.provider :vmware_desktop do |v|
@@ -176,54 +172,46 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
         if server["ram"] != nil
           v.vmx["memsize"] = server["ram"]
         end
-        if server["disk"] != nil && Vagrant.has_plugin?("vagrant-disksize")
-          srv.disksize.size = server["disk"]
-        end
         if server["cap"] != nil
           # not implemented in vmware
           # v.vmxset""] = server["cap"]
         end
         v.gui = server["gui"]
         if server["guest_tools"] == nil || !server["guest_tools"]
+          # not implemented in vmware
           # v.vmxset""] = false
         end
-        vb_ignore = true
       end
 
       srv.vm.provider :hyperv do |h|
-        vb_ignore = true
+        # Hyper-V provider not supported ATM
       end
 
       srv.vm.provider :docker do |d|
-        vb_ignore = true
+        # Docker provider not supported ATM... exiting
       end
 
-      if vb_ignore == false
-        srv.vm.provider :virtualbox do |vb|
-          vb.name = "#{server["name"]}"
-          if server["cpu"] != nil
-            vb.cpus = server["cpu"]
+      srv.vm.provider :virtualbox do |vb|
+        vb.name = "#{server["name"]}"
+        if server["cpu"] != nil
+          vb.cpus = server["cpu"]
+        end
+        if server["ram"] != nil
+          vb.memory = server["ram"]
+        end
+        if server["cap"] != nil
+          vb.customize ["modifyvm", :id, "--cpuexecutioncap", "#{server["cap"]}"]
+        end
+        vb.gui = server["gui"]
+        vb.customize ["setextradata", "global", "GUI/SuppressMessages", "all"]
+        # vagrant-vbguest plugin
+        if server["guest_tools"] == nil || !server["guest_tools"]
+          if Vagrant.has_plugin?("vagrant-vbguest")
+            srv.vbguest.auto_update = false
           end
-          if server["ram"] != nil
-            vb.memory = server["ram"]
-          end
-          if server["disk"] != nil && Vagrant.has_plugin?("vagrant-disksize")
-            srv.disksize.size = server["disk"]
-          end
-          if server["cap"] != nil
-            vb.customize ["modifyvm", :id, "--cpuexecutioncap", "#{server["cap"]}"]
-          end
-          vb.gui = server["gui"]
-          vb.customize ["setextradata", "global", "GUI/SuppressMessages", "all"]
-          # vagrant-vbguest plugin
-          if server["guest_tools"] == nil || !server["guest_tools"]
-            if Vagrant.has_plugin?("vagrant-vbguest")
-              srv.vbguest.auto_update = false
-            end
-          else
-            unless Vagrant.has_plugin?("vagrant-vbguest")
-              system "vagrant plugin install vagrant-vbguest"
-            end
+        else
+          unless Vagrant.has_plugin?("vagrant-vbguest")
+            system "vagrant plugin install vagrant-vbguest"
           end
         end
       end
