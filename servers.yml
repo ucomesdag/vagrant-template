@@ -1,10 +1,13 @@
 ---
-# version 0.1
+# version 0.2
 - name: server1
   hostname: server1.example.com
   box: generic/centos8
   cpu: 1
   ram: 1024
+  disk:
+    - name: disk1
+      size: 500MB
   ip: 172.25.0.101
   ssh_host_port: 2201
   protected: false
@@ -28,13 +31,14 @@
 #   box_url: file://virtualbox.box          # optional
 #   box_version: 1708.01                    # optional
 #   cpu: 2                                  # optional
-#   cap: 40                                 # optional (cpu execution cap 0-100)
+#   cap: 40                                 # optional (cpu execution cap 0-100) [not implemented for vmware]
 #   ram: 2048                               # optional
-#   ip: 172.25.0.2                          # optional
+#   disk: [ {name: disk, size:1G}, .. ]     # optional (size in MB or GB) [virtualbox and parallels only]
+#   ip: 172.25.0.2                          # optional [not working for vmware_fusion]
 #   ssh_host_port: 2100                     # optional
 #   rdp_host_port: 33891                    # optional
 #   winrm_host_port: 59851                  # optional
-#   guest_additions: true                   # optional
+#   guest_additions: true                   # optional [not implemented for vmware]
 #   gui: true                               # optional
 #   protected: false                        # optional
 #   playbook: playbook.yml                  # optional

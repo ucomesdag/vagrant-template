@@ -1,27 +1,14 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
-# version 0.1
+# version 0.2
 
-# Temporary fix for: https://github.com/projectatomic/adb-vagrant-registration/issues/126
-# Registration is skiped on rhel7.5 because subscription_manager_registered cap no longer works
-if Vagrant.has_plugin?('vagrant-registration')
-  module SubscriptionManagerMonkeyPatches
-    def self.subscription_manager_registered?(machine)
-      true if machine.communicate.sudo("/usr/sbin/subscription-manager list --consumed --pool-only | grep -E '^[a-f0-9]{32}$'")
-    rescue
-      false
-    end
-  end
-  VagrantPlugins::Registration::Plugin.guest_capability 'redhat', 'subscription_manager_registered?' do
-    SubscriptionManagerMonkeyPatches
-  end
-end
-# End fix
+# Enable experimental features
+ENV["VAGRANT_EXPERIMENTAL"] = "disks"
 
 # Install plugins
+# https://github.com/hashicorp/vagrant/wiki/Available-Vagrant-Plugins
 need_restart = false
-required_plugins = %w(vagrant-registration vagrant-hostmanager vagrant-protect vagrant-cachier vagrant-disksize vagrant-scp) # nugrant vagrant-bindfs vagrant-proxyconf
-required_plugins = %w(vagrant-registration vagrant-hostmanager vagrant-protect vagrant-cachier vagrant-scp) # nugrant vagrant-bindfs vagrant-proxyconf
+required_plugins = %w(vagrant-registration vagrant-hostmanager vagrant-protect vagrant-cachier vagrant-scp)
 required_plugins.each do |plugin|
   unless Vagrant.has_plugin? plugin
     system "vagrant plugin install #{plugin}"
@@ -30,14 +17,14 @@ required_plugins.each do |plugin|
 end
 exec "vagrant #{ARGV.join' '}" if need_restart
 
-# Imports :
+# Imports
 # Require YAML module
 require 'yaml'
 
-# variables :
+# Variables
 VAGRANT_DIR ||= File.expand_path(File.dirname(__FILE__))
 VAGRANTFILE_API_VERSION ||= "2"
-Vagrant.require_version ">=1.8.4"
+Vagrant.require_version ">=2.2.10"
 
 # Read YAML file with box details
 servers = YAML.load_file(VAGRANT_DIR + '/servers.yml')
@@ -45,7 +32,7 @@ servers = YAML.load_file(VAGRANT_DIR + '/servers.yml')
 # Create boxes
 Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
-  # vagrant-cachier plugin
+  # Configure vagrant-cachier plugin
   if Vagrant.has_plugin?("vagrant-cachier")
     # https://github.com/fgrehm/vagrant-cachier
     host = RbConfig::CONFIG['host_os']
@@ -71,7 +58,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
     config.vm.define server["name"] do |srv|
 
-      # vagrant box
+      # Vagrant box
       if server["box_url"] != nil
         srv.vm.box_url = server["box_url"]
       else
@@ -82,38 +69,47 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
       end
       srv.vm.box = server["box"]
 
-      # ip
-      if server["ip"]
-        srv.vm.network "private_network", ip: server["ip"]
-      end
-
-      # ssh
-      if server["ssh_host_port"]
-        # https://realguess.net/2015/10/06/overriding-the-default-forwarded-ssh-port-in-vagrant/
-        srv.vm.network :forwarded_port, guest: 22, host: server['ssh_host_port'], id: "ssh"
-      end
-
-      # rdp
-      if server["rdp_host_port"]
-        srv.vm.network :forwarded_port, guest: 3389, host: server['rdp_host_port'], id: "rdp"
-      end
-
-      # winrm
-      if server["winrm_host_port"]
-        srv.vm.network :forwarded_port, guest: 5985, host: server['winrm_host_port'], id: "winrm", auto_correct: true
-      end
-
-      # hostname
+      # Set hostname
       if server["hostname"] != nil
         srv.vm.hostname = server["hostname"]
       end
 
-      # vagrant-protect plugin
+      # Set ip
+      if server["ip"]
+        srv.vm.network "private_network", ip: server["ip"]
+        # Fix for vmware_fusion: Networks with custom subnet/mask values are not supported on this platform
+        # srv.vm.network :private_network
+      end
+
+      # Configure ssh
+      if server["ssh_host_port"] != nil
+        # https://realguess.net/2015/10/06/overriding-the-default-forwarded-ssh-port-in-vagrant/
+        srv.vm.network :forwarded_port, guest: 22, host: server['ssh_host_port'], id: "ssh"
+      end
+
+      # Configure rdp
+      if server["rdp_host_port"] != nil
+        srv.vm.network :forwarded_port, guest: 3389, host: server['rdp_host_port'], id: "rdp"
+      end
+
+      # Configure winrm
+      if server["winrm_host_port"] != nil
+        srv.vm.network :forwarded_port, guest: 5985, host: server['winrm_host_port'], id: "winrm", auto_correct: true
+      end
+
+      # Configure Disks
+      if server["disk"] != nil
+        server["disk"].each do |disk|
+          srv.vm.disk :disk, size: disk["size"], name: disk["name"]
+        end
+      end
+
+      # Configure vagrant-protect plugin
       if Vagrant.has_plugin?("vagrant-protect")
         srv.protect.enabled = server["protected"]
       end
 
-      # vagrant-registration plugin
+      # Configure vagrant-registration plugin
       if Vagrant.has_plugin?('vagrant-registration')
         if ENV['RHSM_USERNAME'] && ENV['RHSM_PASSWORD']
           now = Time.new
@@ -128,7 +124,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
         end
       end
 
-      # vagrant-hostmanager plugin
+      # Configure vagrant-hostmanager plugin
       if Vagrant.has_plugin?("vagrant-hostmanager")
         srv.hostmanager.enabled = true
         srv.hostmanager.manage_host = true
@@ -141,56 +137,12 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
         end
       end
 
-      # sync folder
+      # Sync folder
       if File.exist?(".vagrant/machines/#{server["name"]}/virtualbox/action_provision")
         srv.vm.synced_folder ".", "/vagrant"
       end
 
-      # providers
-      srv.vm.provider :parallels do |prl|
-        prl.name = "#{server["name"]}"
-        if server["cpu"] != nil
-          prl.cpus = server["cpu"]
-        end
-        if server["ram"] != nil
-          prl.memory = server["ram"]
-        end
-        if server["cap"] != nil
-          (server["cap"] < 40) ? quota = "low" : (server["cap"] < 80) ? quota = "medium" : quota = "unlimited"
-          prl.customize ["set", :id, "--resource-quota", "#{quota}"]
-        end
-        if server["guest_tools"] == nil || !server["guest_tools"]
-          prl.update_guest_tools = false
-        end
-      end
-
-      srv.vm.provider :vmware_desktop do |v|
-        v.vmx["displayName"] = "#{server["name"]}"
-        if server["cpu"] != nil
-          v.vmx["numvcpu"] = server["cpu"]
-        end
-        if server["ram"] != nil
-          v.vmx["memsize"] = server["ram"]
-        end
-        if server["cap"] != nil
-          # not implemented in vmware
-          # v.vmxset""] = server["cap"]
-        end
-        v.gui = server["gui"]
-        if server["guest_tools"] == nil || !server["guest_tools"]
-          # not implemented in vmware
-          # v.vmxset""] = false
-        end
-      end
-
-      srv.vm.provider :hyperv do |h|
-        # Hyper-V provider not supported ATM
-      end
-
-      srv.vm.provider :docker do |d|
-        # Docker provider not supported ATM... exiting
-      end
-
+      # Providers
       srv.vm.provider :virtualbox do |vb|
         vb.name = "#{server["name"]}"
         if server["cpu"] != nil
@@ -216,7 +168,68 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
         end
       end
 
-      # add your public key
+      srv.vm.provider :parallels do |prl|
+        prl.name = "#{server["name"]}"
+        if server["cpu"] != nil
+          prl.cpus = server["cpu"]
+        end
+        if server["ram"] != nil
+          prl.memory = server["ram"]
+        end
+        if server["disk"] != nil
+          server["disk"].each do |disk|
+            # Size in megabytes
+            size = disk["size"]
+            if size.include? "MB"
+              size = size[0..-2].to_i
+            elsif size.include? "GB"
+              size = size[0..-2].to_i * 1024
+            end
+            prl.customize ["set", :id, "--device-add", "hdd", "--size", size, "--iface", "sata"]
+          end
+        end
+        if server["cap"] != nil
+          (server["cap"] < 40) ? quota = "low" : (server["cap"] < 80) ? quota = "medium" : quota = "unlimited"
+          prl.customize ["set", :id, "--resource-quota", "#{quota}"]
+        end
+        if server["guest_tools"] == nil || !server["guest_tools"]
+          prl.update_guest_tools = false
+        end
+      end
+
+      srv.vm.provider :vmware_desktop do |v|
+        v.vmx["displayName"] = "#{server["name"]}"
+        if server["cpu"] != nil
+          v.vmx["numvcpu"] = server["cpu"]
+        end
+        if server["ram"] != nil
+          v.vmx["memsize"] = server["ram"]
+        end
+        if server["disk"] != nil
+          server["disk"].each do |disk|
+            # Not implemented in vmware
+          end
+        end
+        if server["cap"] != nil
+          # Not implemented in vmware
+          # v.vmx[""] = server["cap"]
+        end
+        v.gui = server["gui"]
+        if server["guest_tools"] == nil || !server["guest_tools"]
+          # Not implemented in vmware
+          # v.vmx[""] = false
+        end
+      end
+
+      srv.vm.provider :hyperv do |h|
+        # Hyper-V provider not supported ATM... exiting
+      end
+
+      srv.vm.provider :docker do |d|
+        # Docker provider not supported ATM... exiting
+      end
+
+      # Add your public key from ~/.ssh/id_rsa.pub
       config.vm.provision "shell" do |s|
         ssh_pub_key = File.readlines("#{Dir.home}/.ssh/id_rsa.pub").first.strip
         s.inline = <<-SHELL
@@ -226,7 +239,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
         SHELL
       end
 
-      # ansible provisioning
+      # Ansible provisioning
       if server["ansible_provision"] != nil && server["ansible_provision"]
         srv.vm.provision :ansible do |ansible|
           ansible.limit = server[:name]
@@ -246,7 +259,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
           ansible.compatibility_mode = "2.0"
           ansible.host_key_checking = "false"
 
-          # Run in verbose mode
+          # Run Ansible in verbose mode
           if server["ansible_verbose"] != nil && server["ansible_verbose"]
             if server["ansible_verbose"].is_a? Numeric
               if server["ansible_verbose"] > 0
@@ -267,17 +280,17 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
             ansible.vault_password_file = "#{server["vault_password_file"]}"
           end
 
-          # Set roles path
+          # Set Ansible roles path
           if server["ansible_roles_path"] == nil
             ansible.galaxy_roles_path = "#{server["ansible_roles_path"]}"
           end
 
-          # requirements file
+          # Set Ansible requirements file
           if server["ansible_requirements"] != nil
              ansible.galaxy_role_file  = "#{server["ansible_requirements"]}"
           end
 
-          # extra_vars
+          # Ansible extra_vars
           if server["ansible_extra_vars"] != nil
             ansible.extra_vars = server["ansible_extra_vars"]
           end
